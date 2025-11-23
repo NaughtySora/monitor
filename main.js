@@ -96,25 +96,40 @@ class CPUResource {
 }
 
 class TracingResource {
+  #timer = null;
   #session = null;
   #options = [];
+  #interval = 0;
 
-  constructor(session, options) {
+  constructor(session, ms, options) {
     this.#session = session;
     this.#options = options;
+    this.#interval = ms;
   }
 
   #watch() {
-    this.#session.subscribe('NodeTracing.dataCollected', (data) => {
-      this.#session.notify('tracing:data', data);
-    });
+    const options = {
+      traceConfig: { includedCategories: this.#options, },
+    };
+    this.#timer = setTimeout(async () => {
+      try {
+        this.#session.subscribe('NodeTracing.dataCollected', async data => {
+          this.#session.notify('tracing:data', data);
+          const timer = this.#timer;
+          if (timer) timer.refresh();
+        });
+        await this.#session.post('NodeTracing.start', options);
+        await async.pause(this.#interval);
+        if (!this.#session || !this.#timer) return;
+        await this.#session.post('NodeTracing.stop');
+      } catch (e) {
+        this.#session.notify('tracing:error', e);
+      }
+    }, 0);
   }
 
   async start() {
     try {
-      await this.#session.post('NodeTracing.start', {
-        traceConfig: { includedCategories: this.#options, }
-      });
       this.#watch();
       this.#session.notify('tracing:start');
     } catch (e) {
@@ -124,6 +139,8 @@ class TracingResource {
 
   async stop() {
     try {
+      clearTimeout(this.#timer);
+      this.#timer = null;
       await this.#session.post('NodeTracing.stop');
       this.#options.length = 0;
       this.#session.notify('tracing:stop');
@@ -225,23 +242,23 @@ class Profiler extends EventEmitter {
   }
 
   async subscribe(...args) {
-    this.#session.on(...args);
+    this.#session.once(...args);
   }
 
-  async cpu(ms = 1000) {
+  async cpu({ ms = 1000 } = {}) {
     const resource = new CPUResource(this, ms);
     this.#resources.set('cpu', resource);
     await resource.start();
   }
 
-  async mem(ms = 1000) {
+  async mem({ ms = 1000 } = {}) {
     const resource = new HeapResource(this, ms);
     this.#resources.set('mem', resource);
     await resource.start();
   }
 
-  async tracing(options) {
-    const resource = new TracingResource(this, options);
+  async tracing({ ms = 1000, categories } = {}) {
+    const resource = new TracingResource(this, ms, categories);
     this.#resources.set('tracing', resource);
     await resource.start();
   }
@@ -306,8 +323,8 @@ const main = async () => {
     .on('cpu:stop', () => {
       console.error('cpu:stop');
     })
-    .on('tracing:error', () => {
-      console.error('tracing:error');
+    .on('tracing:error', (e) => {
+      console.error('tracing:error', e);
     })
     .on('tracing:start', () => {
       console.error('tracing:start');
@@ -323,8 +340,19 @@ const main = async () => {
     });
   profiler.connect();
 
-  //! make tracing resource hold the event loop like others
-  await profiler.tracing(['v8']);
+  await profiler.tracing(
+    {
+      ms: 2000,
+      categories: [
+        'v8',
+        'node',
+        'node.async_hooks',
+        'node.perf',
+        'node.timers',
+        'node.worker'
+      ]
+    }
+  );
   // await profiler.mem();
   // await profiler.cpu();
 
@@ -332,9 +360,9 @@ const main = async () => {
   // await profiler.stop('cpu');
   // await async.pause(3000);
   // await profiler.stop('mem');
-
-  // await async.pause(3000);
+  await async.pause(3000);
   // await profiler.disconnect();
+  await profiler.stop('tracing');
 };
 
 main();
