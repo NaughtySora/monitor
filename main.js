@@ -19,14 +19,19 @@ const trace = require("node:trace_events");
 const threads = require("node:worker_threads");
 const { async } = require("naughty-util");
 const { EventEmitter } = require("node:events");
+
 // process
 
-// const s = new Session();
-// s.post('HeapProfiler.startSampling', {samplingInterval})
-// s.post("IO.close");
-// s.post("Network.disable");
-// s.post("NodeRuntime.disable");
-// s.post("NodeTracing.getCategories");
+// options for TracingResource
+// [
+//   'v8',
+//   'node',
+//   'node.async_hooks',
+//   'node.perf',
+//   'node.timers',
+//   'node.worker'
+// ]
+
 // s.post("NodeWorker.sendMessageToWorker");
 
 /**
@@ -85,6 +90,45 @@ class CPUResource {
       this.#session.notify('cpu:stop');
     } catch (e) {
       this.#session.notify('cpu:error', e);
+    }
+    this.#session = null;
+  }
+}
+
+class TracingResource {
+  #session = null;
+  #options = [];
+
+  constructor(session, options) {
+    this.#session = session;
+    this.#options = options;
+  }
+
+  #watch() {
+    this.#session.subscribe('NodeTracing.dataCollected', (data) => {
+      this.#session.notify('tracing:data', data);
+    });
+  }
+
+  async start() {
+    try {
+      await this.#session.post('NodeTracing.start', {
+        traceConfig: { includedCategories: this.#options, }
+      });
+      this.#watch();
+      this.#session.notify('tracing:start');
+    } catch (e) {
+      this.#session.notify('tracing:error', e);
+    }
+  }
+
+  async stop() {
+    try {
+      await this.#session.post('NodeTracing.stop');
+      this.#options.length = 0;
+      this.#session.notify('tracing:stop');
+    } catch (e) {
+      this.#session.notify('tracing:error', e);
     }
     this.#session = null;
   }
@@ -180,6 +224,10 @@ class Profiler extends EventEmitter {
     await this[Symbol.asyncIterator]();
   }
 
+  async subscribe(...args) {
+    this.#session.on(...args);
+  }
+
   async cpu(ms = 1000) {
     const resource = new CPUResource(this, ms);
     this.#resources.set('cpu', resource);
@@ -187,9 +235,14 @@ class Profiler extends EventEmitter {
   }
 
   async mem(ms = 1000) {
-    //TODO options for heap profiling
     const resource = new HeapResource(this, ms);
     this.#resources.set('mem', resource);
+    await resource.start();
+  }
+
+  async tracing(options) {
+    const resource = new TracingResource(this, options);
+    this.#resources.set('tracing', resource);
     await resource.start();
   }
 
@@ -219,52 +272,69 @@ class Profiler extends EventEmitter {
 
 const main = async () => {
   const profiler = new Profiler();
-  profiler.on('cpu:data', (data) => {
+
+  profiler.on('tracing:data', (data) => {
     // console.dir(data, { depth: Infinity });
-    console.log('cpu:data');
-  });
-  profiler.on('mem:data', (data) => {
-    // console.dir(data, { depth: Infinity });
-    console.log('mem:data');
-  });
-  profiler.on('error', (err) => {
-    console.error('error', err);
-  });
-  profiler.on('cpu:error', (err) => {
-    console.error('error', err);
-  });
-  profiler.on('mem:error', (err) => {
-    console.error('error', err);
-  });
-  profiler.on('mem:start', () => {
-    console.error('mem:start');
-  });
-  profiler.on('mem:stop', () => {
-    console.error('mem:stop');
-  });
-  profiler.on('cpu:start', () => {
-    console.error('cpu:start');
-  });
-  profiler.on('cpu:stop', () => {
-    console.error('cpu:stop');
-  });
-  profiler.on('connect', () => {
-    console.error('connect');
-  });
-  profiler.on('disconnect', () => {
-    console.error('disconnect');
-  });
+    console.log('tracing:data');
+  })
+    .on('cpu:data', (data) => {
+      // console.dir(data, { depth: Infinity });
+      console.log('cpu:data');
+    })
+    .on('mem:data', (data) => {
+      // console.dir(data, { depth: Infinity });
+      console.log('mem:data');
+    })
+    .on('error', (err) => {
+      console.error('error', err);
+    })
+    .on('cpu:error', (err) => {
+      console.error('error', err);
+    })
+    .on('mem:error', (err) => {
+      console.error('error', err);
+    })
+    .on('mem:start', () => {
+      console.error('mem:start');
+    })
+    .on('mem:stop', () => {
+      console.error('mem:stop');
+    })
+    .on('cpu:start', () => {
+      console.error('cpu:start');
+    })
+    .on('cpu:stop', () => {
+      console.error('cpu:stop');
+    })
+    .on('tracing:error', () => {
+      console.error('tracing:error');
+    })
+    .on('tracing:start', () => {
+      console.error('tracing:start');
+    })
+    .on('tracing:stop', () => {
+      console.error('tracing:stop');
+    })
+    .on('connect', () => {
+      console.error('connect');
+    })
+    .on('disconnect', () => {
+      console.error('disconnect');
+    });
   profiler.connect();
-  await profiler.mem();
-  await profiler.cpu();
-  
+
+  //! make tracing resource hold the event loop like others
+  await profiler.tracing(['v8']);
+  // await profiler.mem();
+  // await profiler.cpu();
+
   // await async.pause(3000);
   // await profiler.stop('cpu');
   // await async.pause(3000);
   // await profiler.stop('mem');
 
-  await async.pause(3000);
-  await profiler.disconnect();
+  // await async.pause(3000);
+  // await profiler.disconnect();
 };
 
 main();

@@ -8,5 +8,8 @@
   "exports": "./main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "naughty-util": "^0.6.2"
   }
 }
