@@ -7,9 +7,12 @@
   "type": "commonjs",
   "exports": "./main.js",
   "scripts": {
-    "test": "node ./test/index.js"
+    "test": "clear && node ./test/index.js"
   },
   "dependencies": {
     "naughty-util": "^0.6.2"
+  },
+  "devDependencies": {
+    "c8": "^10.1.3"
   }
 }

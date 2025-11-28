@@ -20,9 +20,10 @@ interface Options {
   ms?: number;
 }
 
+type Categories = Set<>;
+
 interface TrackingOptions extends Options {
-  categories: ['v8', 'node', 'node.async_hooks', 
-    'node.perf', 'node.timers', 'node.worker'];
+  categories: ('v8' | 'node' | 'node.async_hooks' | 'node.perf' | 'node.timers' | 'node.worker')[];
 }
 
 type Post = InstanceType<typeof Session>["post"];

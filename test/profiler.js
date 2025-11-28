@@ -1,92 +1,107 @@
 'use strict';
 
 const { Profiler } = require("../lib/Profiler/");
+const { describe, it, beforeEach, afterEach } = require("node:test");
+const assert = require("node:assert/strict");
+const { async } = require("naughty-util");
+const { Worker } = require("node:worker_threads");
 
-const main = async () => {
-  const profiler = new Profiler();
-  
-  profiler.on('tracing:data', (data) => {
-    console.dir(data, { depth: Infinity });
-    console.log('tracing:data');
-  })
-    .on('cpu:data', (data) => {
-      // console.dir(data, { depth: Infinity });
-      console.log('cpu:data');
-    })
-    .on('mem:data', (data) => {
-      // console.dir(data, { depth: Infinity });
-      console.log('mem:data');
-    })
-    .on('error', (err) => {
-      console.error('error', err);
-    })
-    .on('cpu:error', (err) => {
-      console.error('error', err);
-    })
-    .on('mem:error', (err) => {
-      console.error('error', err);
-    })
-    .on('mem:start', () => {
-      console.error('mem:start');
-    })
-    .on('mem:stop', () => {
-      console.error('mem:stop');
-    })
-    .on('cpu:start', () => {
-      console.error('cpu:start');
-    })
-    .on('cpu:stop', () => {
-      console.error('cpu:stop');
-    })
-    .on('tracing:error', (e) => {
-      console.error('tracing:error', e);
-    })
-    .on('tracing:start', () => {
-      console.error('tracing:start');
-    })
-    .on('tracing:stop', () => {
-      console.error('tracing:stop');
-    })
-    .on('connect', () => {
-      console.error('connect');
-    })
-    .on('disconnect', () => {
-      console.error('disconnect');
+const subscriptions = key => [
+  'connect', 'disconnect', 'error', `${key}:data`,
+  `${key}:error`, `${key}:stop`, `${key}:start`,
+];
+
+describe('Profiler', async () => {
+  let profiler = new Profiler();
+
+  beforeEach(() => void (profiler = new Profiler()));
+
+  await it.skip('cpu', async () => {
+    const key = 'cpu';
+    const events = subscriptions(key);
+    for (const event of events) {
+      profiler.on(event, (data) => {
+        const logs = [event];
+        if (data) logs.push(data);
+        console.log(...logs);
+      });
+    }
+    profiler.connect();
+    await profiler.cpu({ ms: 2000 });
+    await async.pause(3000);
+    await profiler.stop(key);
+  });
+
+  await it.skip('mem', async () => {
+    const key = 'mem';
+    const events = subscriptions(key);
+    for (const event of events) {
+      profiler.on(event, (data) => {
+        const logs = [event];
+        if (data) logs.push(data);
+        console.log(...logs);
+      });
+    }
+    profiler.connect();
+    await profiler.mem({ ms: 2000 });
+    await async.pause(3000);
+    await profiler.stop(key);
+  });
+
+  await it.skip('tracing', async () => {
+    const key = 'tracing';
+    const events = subscriptions(key);
+    for (const event of events) {
+      profiler.on(event, (data) => {
+        const logs = [event];
+        if (data) logs.push(data);
+        console.log(...logs);
+      });
+    }
+    profiler.connect();
+    await profiler.tracing({
+      ms: 2000,
+      categories: [
+        "node",
+        "node.async_hooks",
+        "node.perf",
+        "node.timers",
+        "node.worker",
+        "v8"
+      ],
     });
-  profiler.connect();
+    await async.pause(3000);
+    await profiler.stop(key);
+  });
 
-  // await profiler.tracing(
-  //   {
-  //     ms: 2000,
-  //     categories: [
-  //       'v8',
-  //       'node',
-  //       'node.async_hooks',
-  //       'node.perf',
-  //       'node.timers',
-  //       'node.worker'
-  //     ]
-  //   }
-  // );
-  // await profiler.mem();
-  // await profiler.cpu();
+  await it('worker', async () => {
+    const key = 'worker';
+    const events = subscriptions(key);
+    for (const event of events) {
+      profiler.on(event, (data) => {
+        const logs = [event];
+        if (data) logs.push(data);
+        console.log(...logs);
+      });
+    }
+    const worker = new Worker(`
+      const { parentPort } = require('worker_threads');
+      parentPort.postMessage('hello from worker');
+      parentPort.on('message', (message) => {
+        console.log('message from main', message);
+      });
+    `, { eval: true });
 
-  // await async.pause(3000);
-  // await profiler.stop('cpu');
-  // await async.pause(3000);
-  // await profiler.stop('mem');
-  // await async.pause(3000);
-  // await profiler.disconnect();
-  // await profiler.stop('tracing');
-};
+    worker.on('message', (msg) => console.log("Worker message:", msg));
+    worker.on('exit', () => console.log('Worker exited'));
 
-main();
+    profiler.connect();
+    await profiler.worker({ ms: 2000, });
+    await async.pause(3000);
+    await profiler.stop(key);
+  });
 
-
-// const worker = new Worker(`
-//   const { parentPort } = require('worker_threads');
-//   parentPort.postMessage('hello from worker');
-// `, { eval: true });
-
-// worker.on('message', (msg) => console.log("Worker message:", msg));
-// worker.on('exit', () => console.log('Worker exited'));
+  await afterEach(async () => {
+    await profiler.disconnect();
+  })
+});
