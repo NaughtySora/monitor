@@ -7,7 +7,8 @@
   "type": "commonjs",
   "exports": "./main.js",
   "scripts": {
-    "test": "clear && node ./test/index.js"
+    "test": "clear && node ./test/index.js",
+    "sandbox": "node --watch ./sandbox.js"
   },
   "dependencies": {
     "naughty-util": "^0.6.2"
