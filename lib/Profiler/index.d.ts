@@ -28,8 +28,8 @@ interface TrackingOptions extends Options {
 
 type Post = InstanceType<typeof Session>["post"];
 
-type Key = "cpu" | "mem" | "tracing" | "worker";
-
+// type Key = "cpu" | "mem" | "tracing" | "worker";
+type Key = "cpu" | "mem" | "tracing";
 export class Profiler extends EventEmitter {
   connect(): void;
   post: Post;
@@ -39,7 +39,7 @@ export class Profiler extends EventEmitter {
   cpu(options: Options): Promise<void>;
   mem(options: Options): Promise<void>;
   tracing(options: TrackingOptions): Promise<void>;
-  worker(options): Promise<void>;
+  // worker(options): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
   stop(key: Key): Promise<void>;
 }
