@@ -1,21 +1,16 @@
 import { EventEmitter } from "node:events";
 import { Session } from "node:inspector";
 
-// options for TracingResource
-
-
 /**
- * head profiler has options 
- * default 
+ * @description head profiler has options 
+ * seems nodejs supports only samplingInterval 
  * {
     samplingInterval: 32768,
     stackDepth: 128,
     includeObjectsCollectedByMajorGC: false,
     includeObjectsCollectedByMinorGC: false,
   }
- * seems nodejs supports only samplingInterval 
  */
-
 interface Options {
   ms?: number;
 }
