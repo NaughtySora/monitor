@@ -1,16 +1,6 @@
 import { EventEmitter } from "node:events";
 import { Session } from "node:inspector";
 
-/**
- * @description head profiler has options 
- * seems nodejs supports only samplingInterval 
- * {
-    samplingInterval: 32768,
-    stackDepth: 128,
-    includeObjectsCollectedByMajorGC: false,
-    includeObjectsCollectedByMinorGC: false,
-  }
- */
 interface Options {
   ms?: number;
 }
@@ -23,8 +13,8 @@ interface TrackingOptions extends Options {
 
 type Post = InstanceType<typeof Session>["post"];
 
-// type Key = "cpu" | "mem" | "tracing" | "worker";
-type Key = "cpu" | "mem" | "tracing";
+type Key = "cpu" | "mem" | "tracing" | "worker";
+
 export class Profiler extends EventEmitter {
   connect(): void;
   post: Post;
@@ -34,9 +24,7 @@ export class Profiler extends EventEmitter {
   cpu(options: Options): Promise<void>;
   mem(options: Options): Promise<void>;
   tracing(options: TrackingOptions): Promise<void>;
-  // worker(options): Promise<void>;
+  worker(options): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
   stop(key: Key): Promise<void>;
 }
-
-const p = new Profiler();

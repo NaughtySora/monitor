@@ -14,7 +14,9 @@ const subscriptions = key => [
 describe('Profiler', async () => {
   let profiler = new Profiler();
 
-  beforeEach(() => void (profiler = new Profiler()));
+  beforeEach(() => {
+    profiler = new Profiler();
+  });
 
   await it.skip('cpu', async () => {
     const key = 'cpu';
